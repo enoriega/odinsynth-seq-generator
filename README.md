@@ -8,6 +8,8 @@
 - [ ] Test the baseline using our [dataset](https://huggingface.co/datasets/enoriega/odinsynth_sequence_dataset).
 - [x] Put together encoder-decoder architecture
 - [ ] Write training script
+- [ ] Define evaluation
+  - [ ] Test rule generation with chat gpt?
 - Run experiments:
   - [ ] Fully lexicalized rules (end-to-end rule generation)
   - [ ] Delexicalized rules (generate rule skeletons)

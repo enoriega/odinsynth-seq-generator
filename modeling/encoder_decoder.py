@@ -2,12 +2,10 @@ from dataclasses import dataclass
 from typing import Optional, Union, Tuple
 
 import torch
-from torch import nn
-from transformers import PreTrainedModel, PretrainedConfig, GPT2Config, AutoModel, AutoModelForCausalLM, GPT2LMHeadModel
+from transformers import PreTrainedModel, PretrainedConfig, GPT2Config, GPT2LMHeadModel
 from transformers.utils import ModelOutput
 
-import BertForSpecificationEncoding
-from BertForSpecificationEncoding import BertForSpecificationEncodingConfig, SpecificationEncodingOutput
+from modeling.encoder import BertForSpecificationEncodingConfig, BertForSpecificationEncoding
 
 
 class SpecRuleEncoderDecoderConfig(PretrainedConfig):
@@ -34,11 +32,16 @@ class SpecRuleEncoderDecoderModel(PreTrainedModel):
 
     def forward(
             self,
-            encoder_inputs,
-            decoder_inputs: Optional[dict] = None,
-            return_dict: Optional[bool] = None,
             **kwargs
     ) -> Union[Tuple[torch.Tensor], SpecRuleEncoderDecoderOutput]:
+
+        encoder_inputs = {
+            k: v for k, v in kwargs.items() if not k.startswith("decoder_")
+        }
+
+        decoder_inputs = {
+            k.split("_", maxsplit=1)[1]: v for k, v in kwargs.items() if k.startswith("decoder_")
+        }
 
         # Encoder pass
         encoder_output = self.encoder(

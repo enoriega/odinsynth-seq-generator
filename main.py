@@ -1,16 +1,14 @@
 # This is a sample Python script.
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 import itertools as it
 
 import torch
-from torch.utils.data import DataLoader
-from transformers import PreTrainedTokenizerBase, AutoConfig, AutoTokenizer, AutoModelForCausalLM
-from datasets import load_dataset, DatasetDict
+from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
+from datasets import load_dataset
 
-from BertForSpecificationEncoding import BertForSpecificationEncodingConfig, BertForSpecificationEndocing
-from SpecRuleEncoderDecoderModel import SpecRuleEncoderDecoderModel, SpecRuleEncoderDecoderConfig
+from modeling.encoder import BertForSpecificationEncodingConfig, BertForSpecificationEncoding
+from modeling.encoder_decoder import SpecRuleEncoderDecoderModel, SpecRuleEncoderDecoderConfig
 
 
 # Press ⌃R to execute it or replace it with your code.
@@ -41,7 +39,9 @@ class SpecificationCollator:
     def __call__(self, example: List[Dict[str, Any]]) -> Dict[str, Any]:
         # We are going to prepend the rule with each of the sentences in the spec
         specification = example["spec"]
+        missing = max(self.max_spec_seqs - len(specification['sentence']), 0)
         seq = self.__insert_span_tokens(specification)
+        seq.extend(["" for _ in range(missing)])
         specification["annotated_sentences"] = seq
 
         return example
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     encoder_config = BertForSpecificationEncodingConfig.from_pretrained("bert-base-uncased")
     decoder_config = AutoConfig.from_pretrained("gpt2")
 
-    encoder = BertForSpecificationEndocing.from_pretrained("bert-base-uncased", config=encoder_config)
+    encoder = BertForSpecificationEncoding.from_pretrained("bert-base-uncased", config=encoder_config)
     decoder = AutoModelForCausalLM.from_pretrained("gpt2", config=decoder_config)
 
     encoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
@@ -97,8 +97,8 @@ if __name__ == '__main__':
     )
     decoder_feats.set_format("torch")
 
-    e = encoder_feats[0:2]
-    d = decoder_feats[0:2]
+    e = encoder_feats[0]
+    d = decoder_feats[0]
 
     x = model(encoder_inputs=e,
               decoder_inputs=d)

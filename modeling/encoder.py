@@ -38,7 +38,7 @@ class BertForSpecificationEncodingConfig(BertConfig):
         self.problem_type = "regression"  # Fixed to regression, because we predict a score for each rule - spec pair
 
 
-class BertForSpecificationEndocing(BertPreTrainedModel):
+class BertForSpecificationEncoding(BertPreTrainedModel):
     def __init__(self, config: BertForSpecificationEncodingConfig):
         super().__init__(config)
 
