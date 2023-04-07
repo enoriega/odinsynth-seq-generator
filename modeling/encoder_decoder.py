@@ -39,6 +39,13 @@ class SpecRuleEncoderDecoderModel(PreTrainedModel):
             k: v for k, v in kwargs.items() if not k.startswith("decoder_")
         }
 
+        # Flatten the inputs for the encoder
+        spec_sizes = torch.ones((encoder_inputs['input_ids'].size()[0], )).int() * encoder_inputs['input_ids'].size()[1]
+        encoder_inputs = {
+            k: v.reshape((-1, v.size()[-1])) for k, v in encoder_inputs.items()
+        }
+        encoder_inputs['spec_sizes'] = spec_sizes.tolist()
+
         decoder_inputs = {
             k.split("_", maxsplit=1)[1]: v for k, v in kwargs.items() if k.startswith("decoder_")
         }
@@ -49,15 +56,15 @@ class SpecRuleEncoderDecoderModel(PreTrainedModel):
         )
 
         # Collect the encoded specifications to be used as seeds in the decoding step
-        seed_embeddings = encoder_output.embeds.unsqueeze(dim=0)
+        seed_embeddings = encoder_output.embeds.unsqueeze(dim=1)
 
         # We will insert the seed embeddings as the first input to the CausalLM
         # For this, we will explicitly pass the word embeddings as input to the decoder
         if decoder_inputs:
             # Insert the seed embeddings in the second dimension (first is the batch dimension)
-            decoder_input_embeds = self.decoder.transformer.wte(decoder_inputs['input_ids'])
+            decoder_input_embeds = self.decoder.transformer.wte(decoder_inputs['input_ids'])[:, :-1, :] # Drop the last item because we are adding the seed embedding
             decoder_input_embeds = torch.cat((seed_embeddings, decoder_input_embeds), dim=1)
-            labels = decoder_inputs['labels']
+            labels = decoder_inputs['labels'][:, :-1]
         else:
             decoder_input_embeds = seed_embeddings
             labels = None
