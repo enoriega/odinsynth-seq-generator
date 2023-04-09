@@ -287,18 +287,18 @@ def main():
     # TODO Enrique: Start adaptation here
 
     encoder_config = BertForSpecificationEncodingConfig.from_pretrained("bert-base-uncased")
-    decoder_config = AutoConfig.from_pretrained("gpt2")
+    # decoder_config = AutoConfig.from_pretrained("gpt2")
 
     encoder = BertForSpecificationEncoding.from_pretrained("bert-base-uncased", config=encoder_config)
-    decoder = AutoModelForCausalLM.from_pretrained("gpt2", config=decoder_config)
+    decoder = AutoModelForCausalLM.from_pretrained("gpt2")
 
     encoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     decoder_tokenizer = AutoTokenizer.from_pretrained("gpt2", add_prefix_space=True)
     decoder_tokenizer.add_special_tokens({'pad_token': decoder_tokenizer.eos_token})
 
     config = SpecRuleEncoderDecoderConfig(
-        encoder_config=encoder_config,
-        decoder_config=decoder_config
+        # encoder_config=encoder_config,
+        # decoder_config=decoder_config
     )
 
     model = SpecRuleEncoderDecoderModel(encoder, decoder, config)

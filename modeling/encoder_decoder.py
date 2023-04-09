@@ -9,9 +9,10 @@ from modeling.encoder import BertForSpecificationEncodingConfig, BertForSpecific
 
 
 class SpecRuleEncoderDecoderConfig(PretrainedConfig):
-    encoder_config: BertForSpecificationEncodingConfig
-    decoder_config: GPT2Config
-    is_composition = True  # TODO: Figure out how to mix two model configurations
+    pass
+    # encoder_config: BertForSpecificationEncodingConfig
+    # decoder_config: GPT2Config
+    # is_composition = True  # TODO: Figure out how to mix two model configurations
 
 
 @dataclass
@@ -26,6 +27,9 @@ class SpecRuleEncoderDecoderModel(PreTrainedModel):
         self.config = config
         self.encoder = encoder
         self.decoder = decoder
+
+        # self.encoder.config = self.config.encoder
+        # self.decoder.config = self.config.decoder
 
         # self.encoder = BertForSpecificationEncoding.from_pretrained(config.encoder_config)
         # self.decoder = AutoModelForCausalLM.from_config(config.decoder_config)
