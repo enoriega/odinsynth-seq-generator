@@ -22,7 +22,7 @@ class BertForSpecificationEncodingConfig(BertConfig):
     def __init__(
             self,
             rule_sentence_encoding: str = "cls",
-            spec_encoding: str = "avg",
+            spec_encoding: str = "attention",
             loss_func: str = "mse",
             spec_dropout: float = 0.1,
             margin: Optional[float] = None,
