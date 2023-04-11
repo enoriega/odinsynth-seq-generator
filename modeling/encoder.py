@@ -93,6 +93,19 @@ class BertForSpecificationEncoding(BertPreTrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        # Flatten the inputs if necessary
+        # Flatten the inputs for the encoder
+        if len(input_ids.shape) == 3:
+            spec_sizes = torch.ones((input_ids.size()[0],)).int() * input_ids.size()[1]
+            input_ids = input_ids.reshape((-1, input_ids.size()[-1]))
+            attention_mask = attention_mask.reshape((-1, attention_mask.size()[-1]))
+            token_type_ids = token_type_ids.reshape((-1, token_type_ids.size()[-1]))
+            # encoder_inputs = {
+            #     k: v.reshape((-1, v.size()[-1])) for k, v in encoder_inputs.items()
+            # }
+            spec_sizes = spec_sizes.tolist()
+
+
         outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
@@ -153,6 +166,8 @@ class BertForSpecificationEncoding(BertPreTrainedModel):
                     self.spec_key(split),
                     self.spec_value(split)
                 )[0].squeeze()
+            elif spec_encoding is None:  # No aggregation, i.e. for use with cross attention
+                spec = split
             else:
                 raise ValueError(f"{spec_encoding} is not a valid spec encoding option")
 
