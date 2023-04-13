@@ -4,7 +4,7 @@ from typing import Optional, Union, Tuple
 import torch
 from torch import nn
 from torch.nn import MSELoss
-from transformers import BertConfig, BertPreTrainedModel, BertModel
+from transformers import BertConfig, BertPreTrainedModel, BertModel, PretrainedConfig
 from transformers.utils import ModelOutput
 
 
@@ -13,12 +13,13 @@ class SpecificationEncodingOutput(ModelOutput):
     embeds: torch.FloatTensor
     loss: Optional[torch.FloatTensor] = None
     spec_sizes: torch.IntTensor = None
+    last_hidden_state: Optional[Tuple[torch.FloatTensor]] = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
 
 class BertForSpecificationEncodingConfig(BertConfig):
-
+    model_type = "BertForSpecificationEncoding"
     def __init__(
             self,
             rule_sentence_encoding: str = "cls",
@@ -26,12 +27,13 @@ class BertForSpecificationEncodingConfig(BertConfig):
             loss_func: str = "mse",
             spec_dropout: float = 0.1,
             margin: Optional[float] = None,
+            *args,
             **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
         self.rule_sentence_encoding = rule_sentence_encoding.lower()
-        self.spec_encoding = spec_encoding.lower()
+        self.spec_encoding = spec_encoding.lower() if spec_encoding else None
         self.loss_func = loss_func.lower()
         self.spec_dropout = spec_dropout
         self.margin = margin
@@ -39,8 +41,10 @@ class BertForSpecificationEncodingConfig(BertConfig):
 
 
 class BertForSpecificationEncoding(BertPreTrainedModel):
-    def __init__(self, config: BertForSpecificationEncodingConfig):
-        super().__init__(config)
+    config_class = BertForSpecificationEncodingConfig
+
+    def __init__(self, config: BertForSpecificationEncodingConfig, **kwargs):
+        super().__init__(config, kwargs)
 
         # This will be Robert's ckpt or another BERT/Transformer model
         self.bert = BertModel(config)
@@ -193,6 +197,7 @@ class BertForSpecificationEncoding(BertPreTrainedModel):
             loss=loss,
             embeds=tensor_embeds,
             spec_sizes=torch.tensor(spec_sizes, device=self.device),
+            last_hidden_state=outputs.last_hidden_state,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )

@@ -42,7 +42,7 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
     is_torch_tpu_available,
-    set_seed, EncoderDecoderConfig, EncoderDecoderModel,
+    set_seed, EncoderDecoderConfig, EncoderDecoderModel, AutoModel,
 )
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
@@ -138,6 +138,43 @@ class DataTrainingArguments:
                 extension = self.validation_file.split(".")[-1]
                 assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
 
+def tokenize_function(examples, encoder_tokenizer, decoder_tokenizer, tok_logger):
+
+    with CaptureLogger(tok_logger) as cl:
+        # Tokenize the spec sentences
+
+        encoder_features = \
+            encoder_tokenizer(list(" [SEP] ".join(s['annotated_sentences']) for s in examples['spec']),
+                              return_tensors='pt', padding='max_length', truncation=True)
+        # Re-shape the tensors
+        # encoder_features = {
+        #     k: v.reshape((len(examples['spec']), spec_size, -1))
+        #     for k, v in encoder_features.items()
+        # }
+
+        # Tokenize the output rule
+        decoder_features = decoder_tokenizer(
+            [[r.split("\t")[-1] for r in e[0]['generation_rules']] for e in examples['generation_info']],
+            is_split_into_words=True, return_tensors='pt', padding='max_length', truncation=True)
+
+        # decoder_features = {
+        #     k: v[:, :512]
+        #     for k, v in decoder_features.items()
+        # }
+
+        # Add the "labels" to the decoder_inputs
+        # decoder_features['labels'] = torch.cat(
+        #     (decoder_features['input_ids'][:, 1:], torch.ones((decoder_features['input_ids'].size()[0], 1)) * torch.Tensor(
+        #         decoder_tokenizer.encode(decoder_tokenizer.eos_token))), dim=-1).long()
+        decoder_features['labels'] = decoder_features['input_ids']
+
+    return {
+        "labels": decoder_features['labels'],
+        **encoder_features,
+        **{
+            f"decoder_{k}": v for k, v in decoder_features.items() if k != "input_ids"
+        }
+    }
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -286,20 +323,25 @@ def main():
 
     # TODO Enrique: Start adaptation here
 
-    encoder_config = AutoConfig.from_pretrained("bert-base-uncased")
-    decoder_config = AutoConfig.from_pretrained("bert-base-uncased")
+    AutoConfig.register("BertForSpecificationEncoding", BertForSpecificationEncodingConfig)
+    AutoModel.register(BertForSpecificationEncodingConfig, BertForSpecificationEncoding)
+
+    encoder_config = BertForSpecificationEncodingConfig.from_pretrained("bert-base-uncased", spec_encoding=None)
+    encoder = BertForSpecificationEncoding(config=encoder_config)
+    # decoder_config = AutoConfig.from_pretrained("bert-base-uncased")
     encoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     decoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     decoder_tokenizer.add_tokens(["□"])
-    decoder = AutoModelForCausalLM.from_config(decoder_config)
+    decoder = AutoModelForCausalLM.from_pretrained("bert-base-uncased")
     decoder.resize_token_embeddings(len(decoder_tokenizer))
     # decoder_tokenizer.add_special_tokens({'pad_token': decoder_tokenizer.eos_token})
-    config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
+    # config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
     # config.decoder_start_token_id = decoder_tokenizer.encode("□")[0]
     # config.pad_token_id = decoder_tokenizer.encode(decoder_tokenizer.eos_token)[0]
-    config.decoder_start_token_id = decoder_tokenizer.cls_token_id
-    config.pad_token_id = decoder_tokenizer.pad_token_id
-    model = EncoderDecoderModel(decoder=decoder, config=config)
+    model = EncoderDecoderModel(decoder=decoder, encoder=encoder)
+    model.config.decoder_start_token_id = decoder_tokenizer.cls_token_id
+    model.config.pad_token_id = decoder_tokenizer.pad_token_id
+
 
 
 
@@ -319,48 +361,12 @@ def main():
 
     import itertools as it
 
-    def tokenize_function(examples, spec_size):
 
-        with CaptureLogger(tok_logger) as cl:
-            # Tokenize the spec sentences
-
-            encoder_features = \
-                encoder_tokenizer(list(" [SEP] ".join(s['annotated_sentences']) for s in examples['spec']),
-                                  return_tensors='pt', padding='max_length', truncation=True)
-            # Re-shape the tensors
-            # encoder_features = {
-            #     k: v.reshape((len(examples['spec']), spec_size, -1))
-            #     for k, v in encoder_features.items()
-            # }
-
-            # Tokenize the output rule
-            decoder_features = decoder_tokenizer(
-                [[r.split("\t")[-1] for r in e[0]['generation_rules']] for e in examples['generation_info']],
-                is_split_into_words=True, return_tensors='pt', padding='max_length', truncation=True)
-
-            # decoder_features = {
-            #     k: v[:, :512]
-            #     for k, v in decoder_features.items()
-            # }
-
-            # Add the "labels" to the decoder_inputs
-            # decoder_features['labels'] = torch.cat(
-            #     (decoder_features['input_ids'][:, 1:], torch.ones((decoder_features['input_ids'].size()[0], 1)) * torch.Tensor(
-            #         decoder_tokenizer.encode(decoder_tokenizer.eos_token))), dim=-1).long()
-            decoder_features['labels'] = decoder_features['input_ids']
-
-        return {
-            "labels": decoder_features['labels'],
-            **encoder_features,
-            **{
-                f"decoder_{k}": v for k, v in decoder_features.items() if k != "input_ids"
-            }
-        }
 
     with training_args.main_process_first(desc="dataset map tokenization"):
         if not data_args.streaming:
             tokenized_datasets = input_dataset.map(
-                lambda ex: tokenize_function(ex, collator.max_spec_seqs),
+                lambda ex: tokenize_function(ex, encoder_tokenizer, decoder_tokenizer, tok_logger),
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
                 remove_columns=column_names,
@@ -369,7 +375,7 @@ def main():
             )
         else:
             tokenized_datasets = input_dataset.map(
-                tokenize_function,
+                lambda ex: tokenize_function(ex, encoder_tokenizer, decoder_tokenizer, tok_logger),
                 batched=True,
                 remove_columns=column_names,
             )
