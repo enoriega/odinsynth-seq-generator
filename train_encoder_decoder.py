@@ -42,7 +42,7 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
     is_torch_tpu_available,
-    set_seed, EncoderDecoderConfig, EncoderDecoderModel, AutoModel,
+    set_seed, EncoderDecoderConfig, EncoderDecoderModel, AutoModel, BertConfig,
 )
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
@@ -326,21 +326,40 @@ def main():
     AutoConfig.register("BertForSpecificationEncoding", BertForSpecificationEncodingConfig)
     AutoModel.register(BertForSpecificationEncodingConfig, BertForSpecificationEncoding)
 
-    encoder_config = BertForSpecificationEncodingConfig.from_pretrained("bert-base-uncased", spec_encoding=None)
-    encoder = BertForSpecificationEncoding(config=encoder_config)
-    # decoder_config = AutoConfig.from_pretrained("bert-base-uncased")
+    # encoder_config = BertForSpecificationEncodingConfig.from_pretrained("bert-base-uncased", spec_encoding=None)
+    # # encoder = BertForSpecificationEncoding(config=encoder_config)
+    # decoder_config = BertConfig.from_pretrained("bert-base-uncased")
     encoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     decoder_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     decoder_tokenizer.add_tokens(["□"])
-    decoder = AutoModelForCausalLM.from_pretrained("bert-base-uncased")
-    decoder.resize_token_embeddings(len(decoder_tokenizer))
-    # decoder_tokenizer.add_special_tokens({'pad_token': decoder_tokenizer.eos_token})
     # config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
-    # config.decoder_start_token_id = decoder_tokenizer.encode("□")[0]
-    # config.pad_token_id = decoder_tokenizer.encode(decoder_tokenizer.eos_token)[0]
-    model = EncoderDecoderModel(decoder=decoder, encoder=encoder)
+    #
+    # # Initializing a Bert2Bert model from the bert-base-uncased style configurations
+    # model = EncoderDecoderModel(config=config)
+    # model.decoder.resize_token_embeddings(len(decoder_tokenizer))
+    # # Accessing the model configuration
+    # config_encoder = model.config.encoder
+    # config_decoder = model.config.decoder
+    # # set decoder config to causal lm
+    # # config_decoder.is_decoder = True
+    # # config_decoder.add_cross_attention = True
+    # # decoder = AutoModelForCausalLM.from_config(decoder_config)
+    # # decoder.resize_token_embeddings(len(decoder_tokenizer))
+    # # decoder_tokenizer.add_special_tokens({'pad_token': decoder_tokenizer.eos_token})
+    # # config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
+    # # config.decoder_start_token_id = decoder_tokenizer.encode("□")[0]
+    # # config.pad_token_id = decoder_tokenizer.encode(decoder_tokenizer.eos_token)[0]
+    # # model = EncoderDecoderModel(decoder=decoder, encoder=encoder)
+    # model.config.decoder_start_token_id = decoder_tokenizer.cls_token_id
+    # model.config.pad_token_id = decoder_tokenizer.pad_token_id
+    # model.config.decoder.is_decoder = True
+    # model.config.decoder.add_cross_attention = True
+
+    # Initializing a BERT bert-base-uncased style configuration
+    model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-uncased", "bert-base-uncased")
     model.config.decoder_start_token_id = decoder_tokenizer.cls_token_id
     model.config.pad_token_id = decoder_tokenizer.pad_token_id
+    model.decoder.resize_token_embeddings(len(decoder_tokenizer))
 
 
 
